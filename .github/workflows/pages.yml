@@ -1,0 +1,45 @@
+name: Publish audited portfolio to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify and unpack audited release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat site.part-* > site.tar.gz
+          sha256sum --check site.sha256
+          mkdir _site
+          tar -xzf site.tar.gz -C _site
+          test -f _site/index.html
+          test -f _site/.nojekyll
+          test "$(find _site -type f | wc -l)" -eq 638
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload website only
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
