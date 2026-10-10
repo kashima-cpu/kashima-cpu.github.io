@@ -1,8 +1,15 @@
-name: Publish audited portfolio to GitHub Pages
+name: Publish verified portfolio
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'site/**'
+      - 'site-manifest.json'
+      - '.github/workflows/pages.yml'
+      - '.github/scripts/verify-site.cjs'
+      - 'site.part-*'
+      - 'site.sha256'
   workflow_dispatch:
 
 permissions:
@@ -22,24 +29,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Verify and unpack audited release
+        uses: actions/checkout@v6
+      - name: Verify release before deployment
         shell: bash
         run: |
           set -euo pipefail
-          cat site.part-* > site.tar.gz
-          sha256sum --check site.sha256
-          mkdir _site
-          tar -xzf site.tar.gz -C _site
-          test -f _site/index.html
-          test -f _site/.nojekyll
-          test "$(find _site -type f | wc -l)" -eq 638
+          if [ -d site ]; then
+            node .github/scripts/verify-site.cjs site site-manifest.json
+            mv site _site
+          else
+            # Compatibility only: configuring CI must not replace the live release.
+            cat site.part-* > site.tar.gz
+            sha256sum --check site.sha256
+            mkdir _site
+            tar -xzf site.tar.gz -C _site
+            test -f _site/index.html
+            test -f _site/.nojekyll
+            test "$(find _site -type f | wc -l)" -eq 638
+          fi
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload website only
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: _site
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4
